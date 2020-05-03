@@ -1,2 +1,2 @@
 # ExamToken
-BME Blockchain Technologies (VIMIAV17HU) Homework
+Blockchain Technologies and Applications 2020 (VIMIAV17HU) homework
