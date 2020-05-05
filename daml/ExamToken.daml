@@ -1,0 +1,61 @@
+module ExamToken where
+
+import DA.Assert
+
+-- Fizetőeszköz
+template ExamCoin
+    with
+        issuer : Party
+        owner : Party
+        amount : Int
+    where
+        signatory  issuer, owner -- owner feltétlenül kell?
+                                 -- Mi van, ha ő nem signatory? bárki adhat neki saját maga által kiállított coint.
+                                 -- De ez baj???
+        controller owner can
+            Transfer : ContractId ExamCoinTransfer
+                with newOwner : Party
+                do
+                    create ExamCoinTransfer with
+                        examCoin = this
+                        newOwner
+
+-- Fizetőeszköz utalás
+template ExamCoinTransfer
+    with
+        examCoin : ExamCoin
+        newOwner : Party
+    where
+        signatory examCoin.issuer, examCoin.owner
+
+        controller newOwner can
+            Accept : ContractId ExamCoin
+                do
+                    create examCoin with owner = newOwner
+        
+template Exam
+    with
+        teacher : Party                 -- tanár aki létrehozza
+        invitedStudenst : [Party]
+        tokens : [ExamToken]
+        numMaxParticipants : Int        -- maximum ennyien vehetnek részt
+    where
+        signatory teacher
+        observer invitedStudenst
+        
+        -- choice Apply : ContractId Exam
+        --     with student : Party                
+        --     controller student
+        --         do
+        --             numMaxParticipants =/= length tokens
+        --             token <- create ExamToken with owner = student
+        --             create this with
+        --                 participants = token :: tokens
+
+
+
+template ExamToken
+    with
+        owner : Party
+    where
+        signatory owner
