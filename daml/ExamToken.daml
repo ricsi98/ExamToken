@@ -2,6 +2,12 @@ module ExamToken where
 
 import DA.Assert
 
+
+-- AMI HIANYZIK:
+--      - egy vizsgara egy ember csak egyszer jelentkezhet
+--      - azt hogy kene megoldani, hogy a controllere egy choice-nek olyannak kell lennie, aki szerepel egy listaban
+--          Ha a listat adom meg controllernek, akkor nem lesz jo,
+
 -- Fizetőeszköz
 template ExamCoin
     with
@@ -20,6 +26,15 @@ template ExamCoin
                         examCoin = this
                         newOwner
 
+        controller owner can
+            Split : (ContractId ExamCoin, ContractId ExamCoin)
+                with at : Int
+                do
+                    let other = amount - at
+                    first <- create this with amount = at
+                    second <- create this with amount = other
+                    return (first, second)
+
 -- Fizetőeszköz utalás
 template ExamCoinTransfer
     with
@@ -32,30 +47,181 @@ template ExamCoinTransfer
             Accept : ContractId ExamCoin
                 do
                     create examCoin with owner = newOwner
-        
-template Exam
+
+template ExamSlot
     with
-        teacher : Party                 -- tanár aki létrehozza
-        invitedStudenst : [Party]
-        tokens : [ExamToken]
-        numMaxParticipants : Int        -- maximum ennyien vehetnek részt
-    where
-        signatory teacher
-        observer invitedStudenst
-        
-        -- choice Apply : ContractId Exam
-        --     with student : Party                
-        --     controller student
-        --         do
-        --             numMaxParticipants =/= length tokens
-        --             token <- create ExamToken with owner = student
-        --             create this with
-        --                 participants = token :: tokens
-
-
-
-template ExamToken
-    with
+        examIssuer : Party
         owner : Party
+        exam : Exam
+        price : Int
+        canBeSold : Bool
     where
         signatory owner
+        observer exam.invitedStudents, examIssuer
+
+        choice Destroy : ()
+            controller examIssuer
+                do return()
+
+        choice SetPrice : ContractId ExamSlot
+            with newPrice : Int
+            controller owner
+                do
+                    create this with 
+                        price = newPrice
+                        canBeSold = True
+
+        choice Buy : (ContractId ExamSlot, ContractId ExamCoin)
+            with 
+                coin : ExamCoin
+                newOwner : Party    -- meg tudja venni masnak is, ez baj?
+            controller exam.invitedStudents
+                do
+                    coin.amount === price
+                    assert canBeSold
+
+                    slotCid <- create this with 
+                        owner = newOwner
+                        price = 0
+                        canBeSold = False
+                    coinCid <- create coin with owner = this.owner
+
+                    return (slotCid, coinCid)
+
+
+
+        
+
+template Exam
+    with
+        issuer : Party
+        name : Text
+        remainingSlots : Int
+        invitedStudents : [Party]
+        -- TODO: egy vizsgazo csak egyszer vehet reszt, participants tomb
+    where
+        signatory issuer
+        observer invitedStudents
+
+        choice TakeSlot : (ContractId ExamSlot, ContractId Exam)
+            with student: Party
+            controller invitedStudents
+            do
+                remainingSlots =/= 0
+
+                slotCid <- create ExamSlot with
+                    owner = student
+                    exam = this
+                    examIssuer = issuer
+                    price = 0
+                    canBeSold = False
+
+                examCid <- create this with
+                    remainingSlots = remainingSlots - 1
+                
+                return (slotCid, examCid)
+                
+
+        
+
+
+take_exam_slot : Scenario()
+
+take_exam_slot = scenario do
+    teacher <- getParty "Teacher"
+    student <- getParty "Student"
+    s2 <- getParty "Student2"
+
+    exam <- submit teacher do
+        create Exam with
+            issuer = teacher
+            name = "Teszt"
+            remainingSlots = 10
+            invitedStudents = [student, s2]
+
+    --(slot, exam) <- submit student do
+    --    exercise exam TakeSlot with student = student
+
+    coinCid <- submit teacher do
+        create ExamCoin with
+            issuer = teacher
+            owner = teacher
+            amount = 100
+
+    transferCid <- submit teacher do
+        exercise coinCid Transfer with newOwner = s2
+
+    coinCid <- submit s2 do
+        exercise transferCid Accept
+
+    return()
+
+
+
+create_coin : Scenario()
+
+create_coin = scenario do
+    teacher <- getParty "Teacher"
+    student <- getParty "Student"
+
+    ecCid <- submit teacher do
+        create ExamCoin with
+            issuer = teacher
+            owner = teacher
+            amount = 100
+
+    transferEcCid <- submit teacher do
+        exercise ecCid Transfer with newOwner = student
+
+    newEcId <- submit student do
+        exercise transferEcCid Accept
+
+    return()
+
+only_owner_can_split_and_send : Scenario()
+
+only_owner_can_split_and_send = scenario do
+    teacher <- getParty "Teacher"
+    student <- getParty "Student"
+
+    ecCid <- submit teacher do
+        create ExamCoin with
+            issuer = teacher
+            owner = teacher
+            amount = 100
+    
+    submitMustFail student do
+        exercise ecCid Transfer with newOwner = student
+
+    submitMustFail student do
+        exercise ecCid Split with at = 50
+
+    return()
+
+
+
+split_send_split : Scenario()
+
+split_send_split = scenario do
+    teacher <- getParty "Teacher"
+    student <- getParty "Student"
+
+    ecCid <- submit teacher do
+        create ExamCoin with
+            issuer = teacher
+            owner = teacher
+            amount = 100
+    
+    (ec1, ec2) <- submit teacher do
+        exercise ecCid Split with at = 60
+
+    transferCid <- submit teacher do
+        exercise ec1 Transfer with newOwner = student
+
+    studentsCoin <- submit student do
+        exercise transferCid Accept
+
+    submit student do
+        exercise studentsCoin Split with at = 30
+
+    return()
