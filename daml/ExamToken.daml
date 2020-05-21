@@ -8,6 +8,8 @@ import DA.Assert
 --      - azt hogy kene megoldani, hogy a controllere egy choice-nek olyannak kell lennie, aki szerepel egy listaban
 --          Ha a listat adom meg controllernek, akkor nem lesz jo,
 
+-- DATUM vizsgahoz
+
 -- Fizetőeszköz
 template ExamCoin
     with
@@ -15,9 +17,8 @@ template ExamCoin
         owner : Party
         amount : Int
     where
-        signatory  issuer, owner -- owner feltétlenül kell?
-                                 -- Mi van, ha ő nem signatory? bárki adhat neki saját maga által kiállított coint.
-                                 -- De ez baj???
+        signatory  issuer, owner
+
         controller owner can
             Transfer : ContractId ExamCoinTransfer
                 with newOwner : Party
@@ -52,12 +53,14 @@ template ExamSlot
     with
         examIssuer : Party
         owner : Party
-        exam : Exam
+        examName : String
+        examDate : Date
+        invitedStudents : [Party]
         price : Int
         canBeSold : Bool
     where
         signatory owner
-        observer exam.invitedStudents, examIssuer
+        observer invitedStudents, examIssuer
 
         choice Destroy : ()
             controller examIssuer
@@ -74,11 +77,13 @@ template ExamSlot
         choice Buy : (ContractId ExamSlot, ContractId ExamCoin)
             with 
                 coin : ExamCoin
-                newOwner : Party    -- meg tudja venni masnak is, ez baj?
-            controller exam.invitedStudents
+                newOwner : Party
+            controller newOwner
                 do
                     coin.amount === price
-                    assert canBeSold
+
+                    -- Meg kell keresni a studentnek a slotjait
+                    -- Csak akkor veheti fel, ha meg nincs erre a vizsgara
 
                     slotCid <- create this with 
                         owner = newOwner
@@ -96,22 +101,28 @@ template Exam
     with
         issuer : Party
         name : Text
+        date : Date
         remainingSlots : Int
         invitedStudents : [Party]
         -- TODO: egy vizsgazo csak egyszer vehet reszt, participants tomb
     where
         signatory issuer
-        observer invitedStudents
+        observer invitedStudents, issuer
 
         choice TakeSlot : (ContractId ExamSlot, ContractId Exam)
             with student: Party
-            controller invitedStudents
+            controller student
             do
                 remainingSlots =/= 0
 
+                -- Meg kell keresni a studentnek a slotjait
+                -- Csak akkor veheti fel, ha meg nincs erre a vizsgara
+
                 slotCid <- create ExamSlot with
                     owner = student
-                    exam = this
+                    examName = this.name
+                    examDate = this.date
+                    invitedStudents = this.invitedStudents
                     examIssuer = issuer
                     price = 0
                     canBeSold = False
