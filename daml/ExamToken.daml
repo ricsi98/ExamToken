@@ -43,13 +43,13 @@ template ExamCoinTransfer
                 do
                     create examCoin with owner = newOwner
 
-type ExamSlotKey = (Party, String, Date)
+type ExamSlotKey = (Party, Text, Date)
 
 template ExamSlot
     with
         examIssuer : Party
         owner : Party
-        examName : String
+        examName : Text
         examDate : Date
         invitedStudents : [Party]
         price : Int
