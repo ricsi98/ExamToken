@@ -55,7 +55,7 @@ template ExamSlot
         price : Int
         canBeSold : Bool
     where
-        signatory owner
+        signatory owner, examIssuer
         observer invitedStudents, examIssuer
 
         key (owner, examName, examDate) : ExamSlotKey
@@ -91,10 +91,10 @@ template ExamSlot
                         owner = newOwner
                         price = 0
                         canBeSold = False
-                    coinCid_ <- create ExamCoin with 
+                    coinCid_ <- create coin with 
                         owner = this.owner
-                        issuer = coin.issuer
-                        amount = coin.amount
+
+                    archive coinCid
 
                     return (slotCid, coinCid_)
 
@@ -103,7 +103,7 @@ template ExamSlot
         
 
 template Exam
-    with
+    with 
         issuer : Party
         name : Text
         date : Date
@@ -144,29 +144,28 @@ template Exam
 take_exam_slot : Scenario()
 
 take_exam_slot = scenario do
-    teacher <- getParty "Teacher"
     student <- getParty "Student"
     s2 <- getParty "Student2"
-    bank <- getParty "Bank"
+    bme <- getParty "BME"
 
-    -- Letrehozza a tanar a vizsgat
-    examCid <- submit teacher do
+    -- Letrehozza az egyetem a vizsgat
+    examCid <- submit bme do
         create Exam with 
-            issuer = teacher
+            issuer = bme
             name = "Vizsga"
             date = DA.Date.date 2020 Sep 30
             remainingSlots = 10
             invitedStudents = [student, s2]
 
-    -- A tanar letrehoz coint
-    coinCid <- submit bank do
+    -- Az egyetem letrehoz coint
+    coinCid <- submit bme do
         create ExamCoin with
-            owner = bank
-            issuer = bank
+            owner = bme
+            issuer = bme
             amount = 100
 
-    -- A tanar odaadja a coint a studentnek
-    transferCid <- submit bank do
+    -- Az egyetem odaadja a coint a studentnek
+    transferCid <- submit bme do
         exercise coinCid Transfer with
             newOwner = s2
 
