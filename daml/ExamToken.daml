@@ -75,23 +75,28 @@ template ExamSlot
 
         choice Buy : (ContractId ExamSlot, ContractId ExamCoin)
             with 
-                coin : ExamCoin
+                coinCid : ContractId ExamCoin
                 newOwner : Party
             controller newOwner
                 do
-                    coin.amount === price
-                    
                     -- Csak akkor veheti meg, ha meg nincs erre a vizsgara
                     otherSlot <- lookupByKey @ExamSlot (newOwner, examName, examDate)
                     otherSlot === None
+
+                    coin <- fetch coinCid
+
+                    coin.amount === price
 
                     slotCid <- create this with 
                         owner = newOwner
                         price = 0
                         canBeSold = False
-                    coinCid <- create coin with owner = this.owner
+                    coinCid_ <- create ExamCoin with 
+                        owner = this.owner
+                        issuer = coin.issuer
+                        amount = coin.amount
 
-                    return (slotCid, coinCid)
+                    return (slotCid, coinCid_)
 
 
 
@@ -142,7 +147,48 @@ take_exam_slot = scenario do
     teacher <- getParty "Teacher"
     student <- getParty "Student"
     s2 <- getParty "Student2"
+    bank <- getParty "Bank"
 
+    -- Letrehozza a tanar a vizsgat
+    examCid <- submit teacher do
+        create Exam with 
+            issuer = teacher
+            name = "Vizsga"
+            date = DA.Date.date 2020 Sep 30
+            remainingSlots = 10
+            invitedStudents = [student, s2]
+
+    -- A tanar letrehoz coint
+    coinCid <- submit bank do
+        create ExamCoin with
+            owner = bank
+            issuer = bank
+            amount = 100
+
+    -- A tanar odaadja a coint a studentnek
+    transferCid <- submit bank do
+        exercise coinCid Transfer with
+            newOwner = s2
+
+    -- A student elfogadja a coint
+    coinCid <- submit s2 do
+        exercise transferCid Accept
+
+    -- A student elfoglal egy slotot a vizsgan
+    (slotCid, examCid) <- submit student do
+        exercise examCid TakeSlot with
+            student = student
+
+    -- A student beallitja a slot arat
+    slotCid <- submit student do
+        exercise slotCid SetPrice with
+            newPrice = 100
+
+    -- Az s2 megveszi a slotot
+    (slotCid, coinCid) <- submit s2 do
+        exercise slotCid Buy with
+            coinCid = coinCid
+            newOwner = s2    
     
 
     return()
