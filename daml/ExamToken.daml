@@ -87,6 +87,8 @@ template ExamSlot
 
                     coin.amount === price
 
+                    assert canBeSold
+
                     slotCid <- create this with 
                         owner = newOwner
                         price = 0
@@ -138,7 +140,51 @@ template Exam
                 return (slotCid, examCid)
                 
 
-        
+
+cant_buy_exam_slot_without_price_set : Scenario()
+
+cant_buy_exam_slot_without_price_set = scenario do
+    student <- getParty "Student"
+    s2 <- getParty "Student2"
+    bme <- getParty "BME"
+
+    -- Letrehozza az egyetem a vizsgat
+    examCid <- submit bme do
+        create Exam with 
+            issuer = bme
+            name = "Vizsga"
+            date = DA.Date.date 2020 Sep 30
+            remainingSlots = 10
+            invitedStudents = [student, s2]
+
+    -- Az egyetem letrehoz coint
+    coinCid <- submit bme do
+        create ExamCoin with
+            owner = bme
+            issuer = bme
+            amount = 100
+
+    -- Az egyetem odaadja a coint a studentnek
+    transferCid <- submit bme do
+        exercise coinCid Transfer with
+            newOwner = s2
+
+    -- A student elfogadja a coint
+    coinCid <- submit s2 do
+        exercise transferCid Accept
+
+    -- A student elfoglal egy slotot a vizsgan
+    (slotCid, examCid) <- submit student do
+        exercise examCid TakeSlot with
+            student = student
+
+    -- Az s2 probalja megvenni a slotot, de nem tudja, mivel nem lett engedelyezve
+    --      az eladas (setPrice kell elottenincs beallitva az ar)
+    submitMustFail s2 do
+        exercise slotCid Buy with
+            coinCid = coinCid
+            newOwner = s2    
+    return()
 
 
 take_exam_slot : Scenario()
@@ -197,16 +243,16 @@ take_exam_slot = scenario do
 create_coin : Scenario()
 
 create_coin = scenario do
-    teacher <- getParty "Teacher"
+    bme <- getParty "BME"
     student <- getParty "Student"
 
-    ecCid <- submit teacher do
+    ecCid <- submit bme do
         create ExamCoin with
-            issuer = teacher
-            owner = teacher
+            issuer = bme
+            owner = bme
             amount = 100
 
-    transferEcCid <- submit teacher do
+    transferEcCid <- submit bme do
         exercise ecCid Transfer with newOwner = student
 
     newEcId <- submit student do
@@ -217,13 +263,13 @@ create_coin = scenario do
 only_owner_can_split_and_send : Scenario()
 
 only_owner_can_split_and_send = scenario do
-    teacher <- getParty "Teacher"
+    bme <- getParty "BME"
     student <- getParty "Student"
 
-    ecCid <- submit teacher do
+    ecCid <- submit bme do
         create ExamCoin with
-            issuer = teacher
-            owner = teacher
+            issuer = bme
+            owner = bme
             amount = 100
     
     submitMustFail student do
@@ -239,19 +285,19 @@ only_owner_can_split_and_send = scenario do
 split_send_split : Scenario()
 
 split_send_split = scenario do
-    teacher <- getParty "Teacher"
+    bme <- getParty "BME"
     student <- getParty "Student"
 
-    ecCid <- submit teacher do
+    ecCid <- submit bme do
         create ExamCoin with
-            issuer = teacher
-            owner = teacher
+            issuer = bme
+            owner = bme
             amount = 100
     
-    (ec1, ec2) <- submit teacher do
+    (ec1, ec2) <- submit bme do
         exercise ecCid Split with at = 60
 
-    transferCid <- submit teacher do
+    transferCid <- submit bme do
         exercise ec1 Transfer with newOwner = student
 
     studentsCoin <- submit student do
