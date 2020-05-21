@@ -142,6 +142,33 @@ template Exam
                 return (slotCid, examCid)
                 
 
+burn_exam_slot : Scenario()
+
+burn_exam_slot = scenario do
+    student <- getParty "Student"
+    bme <- getParty "BME"
+
+    -- Letrehozza az egyetem a vizsgat
+    examCid <- submit bme do
+        create Exam with 
+            issuer = bme
+            name = "Vizsga"
+            date = DA.Date.date 2020 Sep 30
+            remainingSlots = 10
+            invitedStudents = [student]
+
+
+    -- A student elfoglal egy slotot a vizsgan
+    (slotCid, examCid) <- submit student do
+        exercise examCid TakeSlot with
+            student = student
+
+    -- Az egyetem elegeti a slotot
+    submit bme do
+        exercise slotCid Destroy
+
+    return()
+
 
 cant_buy_exam_slot_without_price_set : Scenario()
 
