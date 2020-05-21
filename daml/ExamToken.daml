@@ -26,6 +26,8 @@ template ExamCoin
                 with at : Int
                 do
                     let other = amount - at
+                    assert (at > 0)
+                    assert (other > 0)
                     first <- create this with amount = at
                     second <- create this with amount = other
                     return (first, second)
