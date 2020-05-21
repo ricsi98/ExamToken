@@ -1,14 +1,8 @@
 module ExamToken where
 
 import DA.Assert
+import DA.Date
 
-
--- AMI HIANYZIK:
---      - egy vizsgara egy ember csak egyszer jelentkezhet
---      - azt hogy kene megoldani, hogy a controllere egy choice-nek olyannak kell lennie, aki szerepel egy listaban
---          Ha a listat adom meg controllernek, akkor nem lesz jo,
-
--- DATUM vizsgahoz
 
 -- Fizetőeszköz
 template ExamCoin
@@ -49,6 +43,8 @@ template ExamCoinTransfer
                 do
                     create examCoin with owner = newOwner
 
+type ExamSlotKey = (Party, String, Date)
+
 template ExamSlot
     with
         examIssuer : Party
@@ -61,6 +57,9 @@ template ExamSlot
     where
         signatory owner
         observer invitedStudents, examIssuer
+
+        key (owner, examName, examDate) : ExamSlotKey
+        maintainer key._1
 
         choice Destroy : ()
             controller examIssuer
@@ -81,9 +80,10 @@ template ExamSlot
             controller newOwner
                 do
                     coin.amount === price
-
-                    -- Meg kell keresni a studentnek a slotjait
-                    -- Csak akkor veheti fel, ha meg nincs erre a vizsgara
+                    
+                    -- Csak akkor veheti meg, ha meg nincs erre a vizsgara
+                    otherSlot <- lookupByKey @ExamSlot (newOwner, examName, examDate)
+                    otherSlot === None
 
                     slotCid <- create this with 
                         owner = newOwner
@@ -104,7 +104,6 @@ template Exam
         date : Date
         remainingSlots : Int
         invitedStudents : [Party]
-        -- TODO: egy vizsgazo csak egyszer vehet reszt, participants tomb
     where
         signatory issuer
         observer invitedStudents, issuer
@@ -115,8 +114,9 @@ template Exam
             do
                 remainingSlots =/= 0
 
-                -- Meg kell keresni a studentnek a slotjait
                 -- Csak akkor veheti fel, ha meg nincs erre a vizsgara
+                slotId <- lookupByKey @ExamSlot (student, name, date)
+                slotId === None
 
                 slotCid <- create ExamSlot with
                     owner = student
@@ -143,27 +143,7 @@ take_exam_slot = scenario do
     student <- getParty "Student"
     s2 <- getParty "Student2"
 
-    exam <- submit teacher do
-        create Exam with
-            issuer = teacher
-            name = "Teszt"
-            remainingSlots = 10
-            invitedStudents = [student, s2]
-
-    --(slot, exam) <- submit student do
-    --    exercise exam TakeSlot with student = student
-
-    coinCid <- submit teacher do
-        create ExamCoin with
-            issuer = teacher
-            owner = teacher
-            amount = 100
-
-    transferCid <- submit teacher do
-        exercise coinCid Transfer with newOwner = s2
-
-    coinCid <- submit s2 do
-        exercise transferCid Accept
+    
 
     return()
 
