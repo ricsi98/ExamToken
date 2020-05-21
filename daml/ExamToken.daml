@@ -166,12 +166,12 @@ cant_buy_exam_slot_without_price_set = scenario do
             issuer = bme
             amount = 100
 
-    -- Az egyetem odaadja a coint a studentnek
+    -- Az egyetem odaadja a coint a s2-nek
     transferCid <- submit bme do
         exercise coinCid Transfer with
             newOwner = s2
 
-    -- A student elfogadja a coint
+    -- s2 elfogadja a coint
     coinCid <- submit s2 do
         exercise transferCid Accept
 
@@ -212,12 +212,12 @@ take_exam_slot = scenario do
             issuer = bme
             amount = 100
 
-    -- Az egyetem odaadja a coint a studentnek
+    -- Az egyetem odaadja a coint s2-nek
     transferCid <- submit bme do
         exercise coinCid Transfer with
             newOwner = s2
 
-    -- A student elfogadja a coint
+    -- s2 elfogadja a coint
     coinCid <- submit s2 do
         exercise transferCid Accept
 
